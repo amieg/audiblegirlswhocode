@@ -1,0 +1,13 @@
+{
+  "intents": [
+    {
+      "intent": "StoryTeller"
+    },
+    {
+      "intent": "AMAZON.PauseIntent"
+    },
+    {
+      "intent": "AMAZON.ResumeIntent"
+    }
+  ]
+}
