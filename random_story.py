@@ -44,7 +44,7 @@ def on_launch(launch_request, session):
     print("on_launch requestId=" + launch_request['requestId'] +
           ", sessionId=" + session['sessionId'])
     # Dispatch to your skill's launch
-    return get_icebreaker_story()
+    return get_story()
  
 
 def on_intent(intent_request, session):
@@ -59,8 +59,6 @@ def on_intent(intent_request, session):
     # Dispatch to your skill's intent handlers
     if intent_name == "StoryTeller":
         return get_icebreaker_story(intent, session)
-    elif intent_name == "StoryInfo":
-        return get_story(intent, session)    
     else:
         raise ValueError("Invalid intent")
  
@@ -75,71 +73,40 @@ def on_session_ended(session_ended_request, session):
     # add cleanup logic here
 
 
+#store mp3 on s3 with a suffix 0-5 to get random samples
 def getUrl():
-    
-    mp3s = [
-    "https://s3.amazonaws.com/audible-girls-who-code/taoofpooh_2.mp3",
-    "https://s3.amazonaws.com/audible-girls-who-code/wonderfulwizardofoz_2.mp3",
-    "https://s3.amazonaws.com/audible-girls-who-code/harrypotterandthesocerersstone_2.mp3",
-    "https://s3.amazonaws.com/audible-girls-who-code/womanincabin10_2.mp3",
-    "https://s3.amazonaws.com/audible-girls-who-code/endersgame_2.mp3",
-    "https://s3.amazonaws.com/audible-girls-who-code/monsterhuntersiege_2.mp3",
-    "https://s3.amazonaws.com/audible-girls-who-code/Amie_1q84_2.mp3",
-    "https://s3.amazonaws.com/audible-girls-who-code/dancewithdragons_2.mp3"]
-    
-    return mp3s[random.randint(0,7)]
+    #return "https://s3.amazon.com/gwc/sample_" + random.randint(0, 5) + ".mp3"
+    return "https://s3.amazonaws.com/audible-girls-who-code/dreamhouse.mp3"
 
 def get_icebreaker_story(intent, session):
     
     url = getUrl()
     output = "<speak> Girls who code welcome to Audible. Here is the story you requested:  <break time=\"1s\"/> <audio src=\""  + url + "\"/>  </speak>" 
-    
     card_title = intent['name']
     session_attributes = {}
     should_end_session = True
     reprompt_text = 'Please ask me to tell a story'
-    
+   
     return build_response(session_attributes, build_speechlet_response(
           card_title, output, reprompt_text, should_end_session))
   
-def getSample(data):
-    return data['product']['sample_url']
-    
-def getTitle(data): 
-    return data['product']['title']
-    
-def getBookMetadata(url):
-    response =  urllib2.urlopen(url)
-    return json.load(response)
-    
-def getAuthor(data):
-    return data['product']['authors'][0]['name']
-    
-def getSummary(data):
-    return data['product']['merchandising_summary']
-    
+
 def get_story(intent, session):
     asin = 'B0118CYHCK'   #TODO: get random ASIN
     
-    url = 'https://api.audible.com/1.0/catalog/products/' + asin + '?response_groups=sample,product_desc,contributors,product_attrs'
-    
-    response = getBookMetadata(url)
-    sample_url = getSample(response)
-    title = getTitle(response)
-    author = getAuthor(response)
-    summary = getSummary(response)
-    
-    output = "<speak> Have you heard of a book titled " + title  + "? The author of this book is: "  + author + ". This book is about : " + summary + "</speak>" 
+    url = 'https://api.audible.com/1.0/catalog/products/' + asin + '?response_groups=sample'
+    response = urllib2.urlopen(url)
+    data = json.load(response)
+    offset = 10000;
+    sample_url = data['product']['sample_url']
     
     card_title = intent['name']
     session_attributes = {}
     should_end_session = True
     reprompt_text = 'Please ask me to tell a story'
    
-    #return build_response(session_attributes, build_speechlet_response(
-    #      card_title, output, reprompt_text, should_end_session))
     return build_response(session_attributes, build_audioplayer_speechlet_response(
-        card_title, reprompt_text, should_end_session, sample_url, 0, output ))
+          card_title, reprompt_text, should_end_session, sample_url, offset))
 
 # --------------- Helpers that build all of the responses ----------------------
 # ADD AudioPlayer here
@@ -150,6 +117,11 @@ def build_speechlet_response(title, output, reprompt_text, should_end_session):
             'type': 'SSML',
             'ssml': output
         },
+        'card': {
+            'type': 'Simple',
+            'title': 'SessionSpeechlet - ' + title,
+            'content': 'SessionSpeechlet - ' + output
+        },
         'reprompt': {
             'outputSpeech': {
                 'type': 'PlainText',
@@ -159,13 +131,8 @@ def build_speechlet_response(title, output, reprompt_text, should_end_session):
         'shouldEndSession': should_end_session
     }
 
-def build_audioplayer_speechlet_response(title, reprompt_text, should_end_session, audioURL, offset, output):
+def build_audioplayer_speechlet_response(title, reprompt_text, should_end_session, audioURL, offset):
     return {
-        'outputSpeech': {
-            'type': 'SSML',
-            'ssml': output
-        },
-        
         'directives': [ {
            'type': 'AudioPlayer.Play',
            'playBehavior': 'REPLACE_ALL', #Setting to REPLACE_ALL means that this track will start playing immediately
@@ -173,10 +140,22 @@ def build_audioplayer_speechlet_response(title, reprompt_text, should_end_sessio
                 'stream': {
                     'url': audioURL,
                     'token': "0", #Unique token for the track - needed when queueing multiple tracks
+                    'expectedPreviousToken': None, # The expected previous token - when using queues, ensures safety
                     'offsetInMilliseconds': offset
                 }
             }
         }],
+        'card': {
+            'type': 'Simple',
+            'title': 'SessionSpeechlet - ' + title,
+            'content': 'SessionSpeechlet - ' + 'Test'
+        },
+        'reprompt': {
+            'outputSpeech': {
+                'type': 'PlainText',
+                'text': reprompt_text
+            }
+        },
         'shouldEndSession': should_end_session
     }
  
@@ -186,22 +165,4 @@ def build_response(session_attributes, speechlet_response):
         'version': '1.0',
         'sessionAttributes': session_attributes,
         'response': speechlet_response
-    }
-    
-def dumpclean(obj):
-    if type(obj) == dict:
-        for k, v in obj.items():
-            if hasattr(v, '__iter__'):
-                print k
-                dumpclean(v)
-            else:
-                print '%s : %s' % (k, v)
-    elif type(obj) == list:
-        for v in obj:
-            if hasattr(v, '__iter__'):
-                dumpclean(v)
-            else:
-                print v
-    else:
-        print obj    
-    
+    }    
