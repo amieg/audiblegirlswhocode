@@ -120,7 +120,10 @@ def build_speechlet_response(title, output, reprompt_text, should_end_session):
 
 def build_audioplayer_speechlet_response(title, reprompt_text, should_end_session, audio_url, offset, output):
     return {
-        
+        'outputSpeech': {
+            'type': 'SSML',
+            'ssml': output
+        },
         'directives': [ {
            'type': 'AudioPlayer.Play',
            'playBehavior': 'REPLACE_ALL', #Setting to REPLACE_ALL means that this track will start playing immediately
