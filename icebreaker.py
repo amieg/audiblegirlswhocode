@@ -6,8 +6,8 @@ def lambda_handler(event, context):
     """ Route the incoming request based on type (LaunchRequest, IntentRequest,
     etc.) The JSON body of the request is provided in the event parameter.
     """
-    print("event.session.application.applicationId=" +
-          event['session']['application']['applicationId'])
+    #print("event.session.application.applicationId=" +
+    #     event['session']['application']['applicationId'])
     
     """
     Uncomment this if statement and populate with your skill's application ID to
@@ -18,9 +18,9 @@ def lambda_handler(event, context):
     #         "amzn1.echo-sdk-ams.app.[unique-value-here]"):
     #     raise ValueError("Invalid Application ID")
     
-    if event['session']['new']:
-        on_session_started({'requestId': event['request']['requestId']},
-                           event['session'])
+    #if event['session']['new']:
+    #    on_session_started({'requestId': event['request']['requestId']},
+    #                       event['session'])
     
     if event['request']['type'] == "LaunchRequest":
         return on_launch(event['request'], event['session'])
@@ -55,24 +55,22 @@ def on_intent(intent_request, session):
     
     intent = intent_request['intent']
     intent_name = intent_request['intent']['name']
-    
+    print("intent" + intent_name)
     # Dispatch to your skill's intent handlers
     if intent_name == "StoryTeller":
         return get_icebreaker_story(intent, session)
     elif intent_name == "StoryInfo":
-        return get_story(intent, session)    
+        return get_story(intent, session)
+    elif intent_name == "AMAZON.StopIntent":
+        return on_session_ended(intent, session)
+    elif intent_name == "AMAZON.PauseIntent":
+        return on_session_ended(intent, session)       
     else:
         raise ValueError("Invalid intent")
  
 
 def on_session_ended(session_ended_request, session):
-    """ Called when the user ends the session.
-    
-    Is not called when the skill returns should_end_session=true
-    """
-    print("on_session_ended requestId=" + session_ended_request['requestId'] +
-          ", sessionId=" + session['sessionId'])
-    # add cleanup logic here
+    return build_response({}, build_stop_response())
 
 
 def getUrl():
@@ -159,19 +157,15 @@ def build_speechlet_response(title, output, reprompt_text, should_end_session):
         'shouldEndSession': should_end_session
     }
 
-def build_audioplayer_speechlet_response(title, reprompt_text, should_end_session, audioURL, offset, output):
+def build_audioplayer_speechlet_response(title, reprompt_text, should_end_session, audio_url, offset, output):
     return {
-        'outputSpeech': {
-            'type': 'SSML',
-            'ssml': output
-        },
         
         'directives': [ {
            'type': 'AudioPlayer.Play',
            'playBehavior': 'REPLACE_ALL', #Setting to REPLACE_ALL means that this track will start playing immediately
            'audioItem': {
                 'stream': {
-                    'url': audioURL,
+                    'url': audio_url,
                     'token': "0", #Unique token for the track - needed when queueing multiple tracks
                     'offsetInMilliseconds': offset
                 }
@@ -179,6 +173,17 @@ def build_audioplayer_speechlet_response(title, reprompt_text, should_end_sessio
         }],
         'shouldEndSession': should_end_session
     }
+    
+def build_stop_response():
+    return {
+        
+        'directives': [ {
+           "type": "AudioPlayer.ClearQueue",
+           "clearBehavior" : "CLEAR_ALL"
+           
+        }],
+        'shouldEndSession': True
+    }    
  
 
 def build_response(session_attributes, speechlet_response):
